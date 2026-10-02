@@ -1,0 +1,257 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+   These are the exact variables from mm.html. They are declared as plain custom
+   properties first (so the dark-mode blocks below can override them), then
+   exposed to Tailwind through `@theme inline`. `inline` makes Tailwind emit
+   `var(--bg)` rather than a copy of the light value, so every utility follows
+   the active theme.
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --ink: #16212b;
+  --muted: #5b6b78;
+  --line: #e2e7eb;
+  --accent: #1f4e78;
+  --accent2: #2b6ca3;
+  --in: #1f7a4c;
+  --out: #b3392c;
+  --warn: #b8860b;
+  --sidebar: #0f2a3d;
+  --sidebar-ink: #cfe1ee;
+  --sidebar-hi: #173f59;
+
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e1620;
+    --card: #16212c;
+    --ink: #e7edf2;
+    --muted: #93a3b1;
+    --line: #243140;
+    --sidebar: #0a1620;
+    --sidebar-ink: #c6d7e4;
+    --sidebar-hi: #122436;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e1620;
+  --card: #16212c;
+  --ink: #e7edf2;
+  --muted: #93a3b1;
+  --line: #243140;
+  --sidebar: #0a1620;
+  --sidebar-ink: #c6d7e4;
+  --sidebar-hi: #122436;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-in: var(--in);
+  --color-out: var(--out);
+  --color-warn: var(--warn);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --color-sidebar-hi: var(--sidebar-hi);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  /* The sizing rule FontAwesome's own stylesheet would normally provide. Without
+     it the injected <svg> has no width or height and renders at the browser
+     default. Sizing follows the inherited font-size, so `text-[13px]` on any
+     parent scales the glyph. */
+  .fa-icon {
+    display: inline-block;
+    height: 1em;
+    width: 1em;
+    overflow: visible;
+    vertical-align: -0.125em;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  a {
+    color: inherit;
+  }
+
+  /* mm.html's global form styling. Ported here rather than as utilities because
+     mm.html relies on it: without these the labels render inline at 16px and
+     every button falls back to the browser's grey default. */
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--accent2);
+  }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  button.ghost {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+  }
+
+  button.ghost:hover:not(:disabled) {
+    background: var(--accent2);
+    color: #fff;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The handful of composite patterns from mm.html that are awkward to express as
+   utilities. Kept as classes so the screens stay close to the original markup.
+--------------------------------------------------------------------------- */
+@layer components {
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    min-width: 150px;
+    flex: 1;
+  }
+
+  .card .lbl {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .card .val {
+    font-size: 20px;
+    font-weight: bold;
+    margin-top: 4px;
+  }
+
+  .pos {
+    color: var(--in);
+  }
+  .neg {
+    color: var(--out);
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .pill.in {
+    background: #e6f4ec;
+    color: var(--in);
+  }
+  .pill.out {
+    background: #fbe9e7;
+    color: var(--out);
+  }
+
+  .del {
+    color: var(--out);
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .soon {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .soon b {
+    color: var(--ink);
+    display: block;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  /* The scrolling content pane. Its top padding clears the notch on a phone and
+     the horizontal padding is tightened by the utilities in Shell.tsx. */
+  #content {
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  }
+  @media (min-width: 1024px) {
+    #content {
+      padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    }
+  }
+
+  /* A 250px rail plus a table does not fit on a phone, so the surfaces give the
+     width back: fewer pixels around the same information. */
+  @media (max-width: 640px) {
+    .panel {
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      padding: 10px 12px;
+      min-width: 130px;
+    }
+
+    .soon {
+      padding: 22px 12px;
+    }
+
+    /* Tables are wider than a phone and scroll sideways inside their wrapper;
+       momentum scrolling and contained overscroll keep that gesture from
+       dragging the page behind it. */
+    .table-scroll {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+    }
+  }
+}
