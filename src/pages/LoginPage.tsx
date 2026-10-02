@@ -14,22 +14,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { authApi } from '@/api/endpoints'
 import { Field, SubmitButton, TextInput } from '@/components/form'
 import { useQuery } from '@/hooks/useQuery'
-
-/** Mirrors PASSWORD_MIN_LENGTH and _validate_password in app/schemas/auth.py. */
-const PASSWORD_MIN_LENGTH = 8
-
-/**
- * The same rules the server enforces, checked here so the form can complain
- * before the round trip. The server still validates; this is only a courtesy.
- */
-function passwordProblem(password: string): string | null {
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`
-  }
-  if (!/[a-z]/i.test(password)) return 'Password must contain at least one letter.'
-  if (!/\d/.test(password)) return 'Password must contain at least one number.'
-  return null
-}
+import { PASSWORD_MIN_LENGTH, passwordProblem } from '@/lib/password'
 
 type Mode = 'signin' | 'signup'
 

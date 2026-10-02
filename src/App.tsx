@@ -24,6 +24,7 @@ import { MoneyPage } from '@/pages/MoneyPage'
 import { PctDeductionPage } from '@/pages/PctDeductionPage'
 import { PeoplePage } from '@/pages/PeoplePage'
 import { ReportsPage } from '@/pages/ReportsPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { SoonPage } from '@/pages/SoonPage'
 import { TransfersPage } from '@/pages/TransfersPage'
 import { TrialBalancePage } from '@/pages/TrialBalancePage'
@@ -38,6 +39,8 @@ export function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Reachable while signed out, which is the normal case for a reset link. */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -46,6 +49,9 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+      {/* Outside the Shell, so resetting does not drop a signed-in user into the
+          sidebar on a screen that asks for a password. */}
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<Shell />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/in/:category" element={<MoneyPage direction="income" />} />
