@@ -37,7 +37,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         role="status"
         aria-live="polite"
         style={{ display: message ? 'block' : 'none' }}
-        className="fixed right-4 z-50 rounded-lg bg-accent px-4 py-2.5 text-[13px] text-white"
+        // `bottom` is what puts this on screen. Without it a `fixed` box with
+        // only `right` set stays at its static position - below the app, on a
+        // page whose body cannot scroll - so the message was written and never
+        // seen. mm.html's #toast is `bottom:16px; right:16px`.
+        className="fixed bottom-4 right-4 z-50 max-w-[calc(100vw-2rem)] rounded-lg bg-accent px-4 py-2.5 text-[13px] text-white"
       >
         {message}
       </div>
