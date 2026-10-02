@@ -37,11 +37,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         role="status"
         aria-live="polite"
         style={{ display: message ? 'block' : 'none' }}
-        // `bottom` is what puts this on screen. Without it a `fixed` box with
-        // only `right` set stays at its static position - below the app, on a
-        // page whose body cannot scroll - so the message was written and never
-        // seen. mm.html's #toast is `bottom:16px; right:16px`.
-        className="fixed bottom-4 right-4 z-50 max-w-[calc(100vw-2rem)] rounded-lg bg-accent px-4 py-2.5 text-[13px] text-white"
+        // Anchored to the top right. Both edges have to be stated: a `fixed` box
+        // with only `right` set stays at its static position, below the app on a
+        // page whose body does not scroll, which is where this message lived
+        // until it was given a bottom edge and no one ever saw it.
+        //
+        // The safe-area inset keeps it clear of a phone's status bar, and on
+        // small screens it starts below the menu bar rather than over it; from
+        // `lg` up there is no bar and it sits a plain rem from the top.
+        className={[
+          'fixed right-4 z-50 max-w-[calc(100vw-2rem)] rounded-lg bg-accent px-4 py-2.5',
+          'text-[13px] text-white shadow-lg',
+          'top-[calc(env(safe-area-inset-top,0px)+3.75rem)]',
+          'lg:top-[calc(env(safe-area-inset-top,0px)+1rem)]',
+        ].join(' ')}
       >
         {message}
       </div>
