@@ -47,6 +47,9 @@ export interface Transaction {
   transfer_id: string | null
   pct: string | null
   base_total: string | null
+  /** Who the money came from. Null on transfers, on expenses, and on entries
+      recorded before money in had to name someone. */
+  person_id: string | null
   created_by_id: string | null
   created_at: string
   updated_at: string

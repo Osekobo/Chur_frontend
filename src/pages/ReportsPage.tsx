@@ -9,6 +9,7 @@ import { useState } from 'react'
 
 import { reportsApi } from '@/api/endpoints'
 import type { CategoryTotal } from '@/api/types'
+import { SearchBox } from '@/components/SearchBox'
 import { Async, DataTable, PageHeader, Panel, PanelRow } from '@/components/ui'
 import { useDebounced, useQuery } from '@/hooks/useQuery'
 import { CATS_IN, CATS_OUT } from '@/lib/constants'
@@ -72,13 +73,7 @@ function ContributionSearch() {
         with a running total - covers Tithes, Offerings, Donations, Welfare, Pledges and Other
         Income.
       </div>
-      <input
-        type="text"
-        value={term}
-        placeholder="e.g. John Otieno"
-        onChange={(event) => setTerm(event.target.value)}
-        className="w-full rounded-md border border-line bg-bg px-2 py-1.5 text-[13px] text-ink"
-      />
+      <SearchBox value={term} onChange={setTerm} placeholder="e.g. John Otieno" autoFocus />
 
       <div className="mt-3">
         {debounced.length === 0 ? (

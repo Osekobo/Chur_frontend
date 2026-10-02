@@ -4,21 +4,28 @@
  * mm.html downloaded the whole ledger and sliced it in the browser, capped at
  * 1000 rows. This uses the backend's limit/offset instead, so the ledger can
  * grow past that without quietly losing entries.
+ *
+ * The search box narrows the ledger server-side, and the page counter resets to
+ * the first page whenever the term changes: staying on page 4 of a result set
+ * that now has one page would show an empty ledger and look like data loss.
  */
 
 import { useState } from 'react'
 
 import { transactionsApi } from '@/api/endpoints'
 import { Pill } from '@/components/form'
-import { Async, DataTable, PageHeader } from '@/components/ui'
+import { SearchBox } from '@/components/SearchBox'
+import { Async, DataTable, PageHeader, Panel } from '@/components/ui'
 import { Icon } from '@/components/Icon'
-import { useQuery } from '@/hooks/useQuery'
+import { useDebounced, useQuery } from '@/hooks/useQuery'
 import { money } from '@/lib/money'
 
 const PAGE_SIZE = 100
 
 export function LedgerPage() {
   const [page, setPage] = useState(0)
+  const [term, setTerm] = useState('')
+  const search = useDebounced(term.trim(), 250)
 
   const state = useQuery(
     () =>
@@ -26,8 +33,9 @@ export function LedgerPage() {
         order: 'asc',
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
+        ...(search ? { search } : {}),
       }),
-    [page],
+    [page, search],
   )
 
   const rows = state.data ?? []
@@ -43,13 +51,29 @@ export function LedgerPage() {
         subtitle="Every transaction ever recorded, in date order"
       />
 
+      <Panel title="Search the ledger">
+        <div className="mt-1">
+          <SearchBox
+            value={term}
+            onChange={(value) => {
+              setTerm(value)
+              setPage(0)
+            }}
+            placeholder="Search by name, category or note"
+          />
+          <p className="mt-1 text-[11px] text-muted">
+            {search ? `Showing entries matching “${search}”.` : 'Showing every entry.'}
+          </p>
+        </div>
+      </Panel>
+
       <Async state={state}>
         {(data) => (
           <>
             <DataTable
               rows={data}
               rowKey={(row) => row.id}
-              emptyMessage="Nothing recorded yet"
+              emptyMessage={search ? `Nothing matches “${search}”` : 'Nothing recorded yet'}
               columns={[
                 { key: 'date', header: 'Date', render: (row) => row.date },
                 {

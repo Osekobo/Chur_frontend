@@ -20,9 +20,10 @@ import { peopleApi } from '@/api/endpoints'
 import type { Person } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { DeleteLink, Field, FormGrid, Select, SubmitButton, TextInput } from '@/components/form'
+import { SearchBox } from '@/components/SearchBox'
 import { Async, DataTable, PageHeader, Panel } from '@/components/ui'
 import { useToast } from '@/components/Toast'
-import { useMutation, useQuery } from '@/hooks/useQuery'
+import { useDebounced, useMutation, useQuery } from '@/hooks/useQuery'
 import {
   EMAIL_REQUIRED_PERSON_ROLES,
   MEMBER_CATEGORIES,
@@ -46,7 +47,14 @@ export function PeoplePage() {
   const [version, setVersion] = useState(0)
   const bump = () => setVersion((value) => value + 1)
 
-  const state = useQuery(() => peopleApi.list({ role, limit: 1000 }), [role, version])
+  /** One box for the whole directory: name, phone or email address. */
+  const [term, setTerm] = useState('')
+  const search = useDebounced(term.trim(), 250)
+
+  const state = useQuery(
+    () => peopleApi.list({ role, limit: 1000, ...(search ? { search } : {}) }),
+    [role, search, version],
+  )
 
   const create = useMutation(
     (payload: { name: string; phone: string; email: string; category: string; notes: string }) =>
@@ -143,12 +151,25 @@ export function PeoplePage() {
         </Panel>
       ) : null}
 
+      <Panel title={`Search ${label.toLowerCase()}`}>
+        <div className="mt-1">
+          <SearchBox
+            value={term}
+            onChange={setTerm}
+            placeholder="Search by name, phone or email"
+          />
+          <p className="mt-1 text-[11px] text-muted">
+            {search ? `Showing matches for “${search}”.` : 'Showing everyone on this tab.'}
+          </p>
+        </div>
+      </Panel>
+
       <Async state={state}>
         {(data) => (
           <DataTable
             rows={data}
             rowKey={(row) => row.id}
-            emptyMessage={`No ${label.toLowerCase()} yet`}
+            emptyMessage={search ? `Nothing matches “${search}”` : `No ${label.toLowerCase()} yet`}
             columns={[
               { key: 'name', header: 'Name', render: (row) => row.name },
               { key: 'phone', header: 'Phone', render: (row) => row.phone || '' },

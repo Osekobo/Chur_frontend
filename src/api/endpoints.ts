@@ -143,6 +143,8 @@ export interface TransactionInput {
   account: Account
   notes?: string
   date: string
+  /** Required for income, refused for an expense: the giver is in the directory. */
+  person_id?: string
 }
 
 export const transactionsApi = {

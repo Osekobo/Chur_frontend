@@ -4,6 +4,12 @@
  * One component covers all twelve of mm.html's entry screens: the route decides
  * the direction and which category is pre-selected, and `all` lists everything
  * in that direction.
+ *
+ * The two directions differ in one important way. Money Out names who was paid,
+ * and that is free text - a power company, a mason, a supplier that may not be in
+ * the directory at all. Money In names who gave, and a giver must be someone in the
+ * directory, so that box is a picker rather than a text field. The server enforces
+ * both; this only saves the mistake.
  */
 
 import { useMemo, useState, type FormEvent } from 'react'
@@ -12,10 +18,12 @@ import { useParams } from 'react-router-dom'
 import { peopleApi, reportsApi, transactionsApi } from '@/api/endpoints'
 import type { Account, Person, Transaction } from '@/api/types'
 import { PartyField } from '@/components/PartyField'
+import { PersonField } from '@/components/PersonField'
+import { SearchBox } from '@/components/SearchBox'
 import { DeleteLink, Field, FormGrid, Select, SubmitButton, TextInput } from '@/components/form'
 import { Async, DataTable, PageHeader, Panel } from '@/components/ui'
 import { useToast } from '@/components/Toast'
-import { useMutation, useQuery } from '@/hooks/useQuery'
+import { useDebounced, useMutation, useQuery } from '@/hooks/useQuery'
 import { ACCOUNTS, CATS_IN, CATS_OUT, FUNDS, PAGE_SIZE } from '@/lib/constants'
 import { money, toNumber } from '@/lib/money'
 
@@ -39,18 +47,26 @@ export function MoneyPage({ direction }: { direction: Direction }) {
   const [version, setVersion] = useState(0)
   const bump = () => setVersion((value) => value + 1)
 
+  /** Free-text search over the list: a giver's name, a note, a supplier. */
+  const [term, setTerm] = useState('')
+  const search = useDebounced(term.trim(), 250)
+
   const state = useQuery(
     () =>
       transactionsApi.list({
         type: direction,
         ...(isAll ? {} : { category: selected }),
+        ...(search ? { search } : {}),
         limit: PAGE_SIZE,
         order: 'desc',
       }),
-    [direction, selected, version],
+    [direction, selected, search, version],
   )
 
-  const peopleState = useQuery(() => peopleApi.list({ limit: 1000 }), [])
+  // The whole directory, to suggest names in the "Paid to" box. Only the Money Out
+  // form has that box: Money In picks from the directory as you type instead, so
+  // downloading a thousand rows to feed a suggestion list would be wasted.
+  const peopleState = useQuery(() => peopleApi.list({ limit: 1000 }), [], direction === 'expense')
 
   // The table below is capped at PAGE_SIZE, so the "Total:" line reads the
   // server's own per-category totals rather than summing the visible rows.
@@ -75,6 +91,7 @@ export function MoneyPage({ direction }: { direction: Direction }) {
     (payload: {
       category: string
       party: string
+      personId: string
       amount: number
       fund: string
       account: Account
@@ -84,7 +101,9 @@ export function MoneyPage({ direction }: { direction: Direction }) {
       transactionsApi.create({
         type: direction,
         category: payload.category,
-        party: payload.party,
+        ...(direction === 'income'
+          ? { person_id: payload.personId }
+          : { party: payload.party }),
         amount: payload.amount,
         fund: payload.fund,
         account: payload.account,
@@ -114,10 +133,18 @@ export function MoneyPage({ direction }: { direction: Direction }) {
       toast('Please enter a date and amount')
       return
     }
+    // Money in is recorded against a person, so an untouched picker is refused
+    // here with a reason the user can act on. The server refuses it too.
+    const personId = String(form.get('person_id') ?? '')
+    if (direction === 'income' && personId === '') {
+      toast('Choose who gave, from the directory')
+      return
+    }
     void create
       .run({
         category: String(form.get('category') ?? ''),
         party: String(form.get('party') ?? ''),
+        personId,
         amount,
         fund: String(form.get('fund') ?? ''),
         account: String(form.get('account') ?? '') as Account,
@@ -170,11 +197,11 @@ export function MoneyPage({ direction }: { direction: Direction }) {
                 />
               )}
             </Field>
-            <PartyField
-              name="party"
-              label={direction === 'income' ? 'From (person)' : 'Paid to'}
-              suggestions={names}
-            />
+            {direction === 'income' ? (
+              <PersonField name="person_id" label="From (person)" />
+            ) : (
+              <PartyField name="party" label="Paid to" suggestions={names} />
+            )}
             <Field label="Amount (KSh)">
               {(id) => <TextInput id={id} name="amount" type="number" min={0} step={1} required />}
             </Field>
@@ -194,12 +221,31 @@ export function MoneyPage({ direction }: { direction: Direction }) {
         </div>
       </Panel>
 
+      <Panel title="Search this list">
+        <div className="mt-1">
+          <SearchBox
+            value={term}
+            onChange={setTerm}
+            placeholder={
+              direction === 'income'
+                ? 'Search by name, or part of a name — or by a note'
+                : 'Search by supplier, or by a note'
+            }
+          />
+          <p className="mt-1 text-[11px] text-muted">
+            {search
+              ? `Showing entries matching “${search}”.`
+              : `Showing the ${PAGE_SIZE} most recent.`}
+          </p>
+        </div>
+      </Panel>
+
       <Async state={state}>
         {(data) => (
           <DataTable
             rows={data}
             rowKey={(row) => row.id}
-            emptyMessage="No entries yet"
+            emptyMessage={search ? `Nothing matches “${search}”` : 'No entries yet'}
             columns={[
               { key: 'date', header: 'Date', render: (row) => row.date },
               { key: 'category', header: 'Category', render: (row) => row.category },
