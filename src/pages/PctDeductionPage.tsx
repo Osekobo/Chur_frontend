@@ -2,15 +2,14 @@
  * Tithe % Deduction.
  *
  * The amount is never taken on trust from the browser: the server recomputes it
- * from the collection actually recorded for that date and the chosen basis. The
- * live figures below come from the preview endpoint so the form can update as you
- * type.
+ * from the tithes actually recorded for that date in the chosen account. The live
+ * figures below come from the preview endpoint so the form can update as you type.
  */
 
 import { useState, type FormEvent } from 'react'
 
 import { deductionsApi } from '@/api/endpoints'
-import type { Account, DeductionBasis, Transaction } from '@/api/types'
+import type { TitheScope, Transaction } from '@/api/types'
 import { Field, FormGrid, Select, SubmitButton, TextInput } from '@/components/form'
 import { Async, Card, Cards, DataTable, PageHeader, Panel } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -18,10 +17,13 @@ import { useMutation, useDebounced, useQuery } from '@/hooks/useQuery'
 import { ACCOUNTS } from '@/lib/constants'
 import { money, toNumber } from '@/lib/money'
 
-/** Must match the DeductionBasis values in app/enums.py. */
-const BASES: readonly { value: DeductionBasis; label: string }[] = [
-  { value: 'tithes', label: 'Tithes only' },
-  { value: 'all', label: 'All money collected' },
+/**
+ * The account dropdown, with the extra "All" row the scope adds. The values must
+ * match Account in app/enums.py plus the "all" literal in TitheScope.
+ */
+const SCOPES: readonly { value: TitheScope; label: string }[] = [
+  ...ACCOUNTS.map((account) => ({ value: account as TitheScope, label: account })),
+  { value: 'all', label: 'All' },
 ]
 
 export function PctDeductionPage() {
@@ -29,7 +31,7 @@ export function PctDeductionPage() {
   const [version, setVersion] = useState(0)
   const [date, setDate] = useState('')
   const [pct, setPct] = useState('')
-  const [basis, setBasis] = useState<DeductionBasis>('tithes')
+  const [scope, setScope] = useState<TitheScope>('Cash')
 
   const history = useQuery(
     () => deductionsApi.history(),
@@ -42,19 +44,14 @@ export function PctDeductionPage() {
   const debouncedDate = useDebounced(date, 250)
   const debouncedPct = useDebounced(pctValue, 250)
   const preview = useQuery(
-    () => deductionsApi.preview(debouncedDate, debouncedPct, basis),
-    [debouncedDate, debouncedPct, basis],
+    () => deductionsApi.preview(debouncedDate, debouncedPct, scope),
+    [debouncedDate, debouncedPct, scope],
     debouncedDate !== '' && debouncedPct > 0,
   )
 
   const create = useMutation(
-    (payload: {
-      date: string
-      pct: number
-      account: Account
-      notes: string
-      basis: DeductionBasis
-    }) => deductionsApi.create(payload),
+    (payload: { date: string; pct: number; account: TitheScope; notes: string }) =>
+      deductionsApi.create(payload),
     () => {
       setVersion((value) => value + 1)
       toast('Deduction recorded')
@@ -80,9 +77,8 @@ export function PctDeductionPage() {
       .run({
         date: chosen,
         pct: percentage,
-        account: String(form.get('account') ?? '') as Account,
+        account: scope,
         notes,
-        basis,
       })
       .then((result) => {
         if (result === null) {
@@ -97,16 +93,18 @@ export function PctDeductionPage() {
       })
   }
 
-  const collected = preview.data?.collected_that_day
+  const tithes = preview.data?.tithes_that_day
   const amount = preview.data?.deduction_amount
-  const wholeDay = basis === 'all'
+  const shares = preview.data?.shares ?? []
+  const everywhere = scope === 'all'
+  const scopeLabel = everywhere ? 'any account' : String(scope)
 
   return (
     <>
       <PageHeader
         icon="pctDeduction"
         title="Tithe % Deduction"
-        subtitle="Take a percentage off what a Sunday brought in - e.g. a diocese remittance. Percentage Base decides what it comes off: Tithes only leaves Offerings, Donations and Welfare untouched, while All money collected takes it off every category recorded that day. Money moved between the church's own accounts is never counted. This creates a real Money Out entry the moment you click Record, so it actually reduces the account you choose."
+        subtitle={`Take a percentage off one Sunday's tithes - e.g. a diocese remittance. The dropdown picks which account the tithes were collected into: deducting from Cash takes its share of the collection, while All covers every account that held tithes that day and posts each account its own share. Only Tithes are ever read - Offerings, Donations and Welfare are untouched, and money moved between the church's own accounts is never counted. This creates real Money Out entries the moment you click Record, so it actually reduces the accounts it came from.`}
       />
 
       <Panel>
@@ -138,19 +136,16 @@ export function PctDeductionPage() {
               />
             )}
           </Field>
-          <Field label="Percentage Base">
+          <Field label="Deduct from Account">
             {(id) => (
               <Select
                 id={id}
-                name="basis"
-                value={basis}
-                choices={BASES}
-                onChange={(event) => setBasis(event.target.value as DeductionBasis)}
+                name="account"
+                value={scope}
+                choices={SCOPES}
+                onChange={(event) => setScope(event.target.value as TitheScope)}
               />
             )}
-          </Field>
-          <Field label="Deduct from Account">
-            {(id) => <Select id={id} name="account" options={ACCOUNTS} />}
           </Field>
           <Field label="Purpose / Notes">
             {(id) => (
@@ -165,8 +160,12 @@ export function PctDeductionPage() {
         <div className="mt-3.5">
           <Cards>
             <Card
-              label={wholeDay ? 'All money collected that Sunday' : 'Tithes collected that Sunday'}
-              value={collected === undefined ? money(0) : money(collected)}
+              label={
+                everywhere
+                  ? 'Tithes collected that Sunday (all accounts)'
+                  : `Tithes collected that Sunday in ${scope}`
+              }
+              value={tithes === undefined ? money(0) : money(tithes)}
             />
             <Card
               label="Deduction amount"
@@ -174,8 +173,27 @@ export function PctDeductionPage() {
               tone="neg"
             />
           </Cards>
+          {shares.length > 1 ? (
+            <p className="mt-2 text-[13px] text-muted">
+              Split between accounts:{' '}
+              {shares
+                .map((share) => `${share.account} ${money(share.deduction_amount)}`)
+                .join(', ')}
+              . Each account is reduced by its own share.
+            </p>
+          ) : null}
           {debouncedDate !== '' && debouncedPct > 0 && preview.error !== null ? (
             <div className="neg text-[13px]">{preview.error}</div>
+          ) : null}
+          {debouncedDate !== '' &&
+          debouncedPct > 0 &&
+          preview.error === null &&
+          preview.data !== null &&
+          Number(preview.data.tithes_that_day) === 0 ? (
+            <div className="text-[13px]">
+              No Tithes were collected in {scopeLabel} on that date, so there is nothing to
+              deduct.
+            </div>
           ) : null}
         </div>
       </Panel>
@@ -195,7 +213,7 @@ export function PctDeductionPage() {
               },
               {
                 key: 'base',
-                header: 'Collected That Day',
+                header: 'Tithes That Day',
                 render: (row) => money(row.base_total ?? 0),
               },
               {

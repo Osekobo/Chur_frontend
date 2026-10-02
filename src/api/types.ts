@@ -143,11 +143,12 @@ export interface ReferenceData {
 }
 
 /**
- * What a Tithe % Deduction is taken from. `tithes` is the traditional reading and
- * leaves Offerings and the rest alone; `all` takes the percentage off every
- * category collected that day. Matches DeductionBasis in app/enums.py.
+ * What a Tithe % Deduction is taken from. An account takes the percentage off the
+ * tithes collected into that account and posts the deduction there; `'all'` uses
+ * the tithes collected that day across every account and splits the deduction
+ * between them. Matches TitheScope in app/enums.py.
  */
-export type DeductionBasis = 'tithes' | 'all'
+export type TitheScope = Account | 'all'
 
 export interface TithesOnDate {
   date: string
@@ -155,20 +156,30 @@ export interface TithesOnDate {
   entry_count: number
 }
 
+/** One account's part of a deduction, so a split can be shown as it happens. */
+export interface DeductionShare {
+  account: Account
+  tithes: string
+  deduction_amount: string
+}
+
 export interface PctDeductionPreview {
   date: string
   pct: string
-  /** The collection the percentage would come from, for the chosen basis. */
-  collected_that_day: string
+  /** Tithes in the chosen scope on this date. */
+  tithes_that_day: string
   deduction_amount: string
-  basis: DeductionBasis
+  /** Per-account breakdown, empty when the chosen account has no tithes. */
+  shares: DeductionShare[]
 }
 
 export interface PctDeductionResult {
-  transaction: Transaction
-  collected_that_day: string
+  /** One entry for a single account, one per account when the scope is `'all'`. */
+  transactions: Transaction[]
+  tithes_that_day: string
+  /** Total across every created entry. */
   deduction_amount: string
-  basis: DeductionBasis
+  shares: DeductionShare[]
 }
 
 export interface User {
