@@ -8,8 +8,8 @@
  * has been requested - and the Approve button is labelled with the amount it is
  * about to commit.
  *
- * Anyone signed in may raise a request; only an administrator may decide one.
- * The buttons are hidden for everyone else, but the server refuses regardless.
+ * Anyone signed in may raise a request; only an accountant may decide one. The
+ * buttons are hidden for everyone else, but the server refuses regardless.
  */
 
 import { useState, type FormEvent } from 'react'
@@ -22,6 +22,7 @@ import { Async, Cards, Card, DataTable, PageHeader, Panel } from '@/components/u
 import { useToast } from '@/components/Toast'
 import { useMutation, useQuery } from '@/hooks/useQuery'
 import { ACCOUNTS, CATS_OUT, FUNDS } from '@/lib/constants'
+import { can } from '@/lib/permissions'
 
 /**
  * A request is always money going out, so it takes the expense categories only.
@@ -51,7 +52,7 @@ function formatWhen(value: string | null): string {
 export function ApprovalsPage() {
   const { user: me } = useAuth()
   const toast = useToast()
-  const isAdmin = me?.is_superuser === true
+  const canDecide = can(me, 'approvals:decide')
 
   const [version, setVersion] = useState(0)
   const bump = () => setVersion((value) => value + 1)
@@ -309,10 +310,12 @@ export function ApprovalsPage() {
                 header: '',
                 render: (row) => {
                   if (!row.is_pending) return null
-                  if (!isAdmin) {
+                  // The decider is the accountant, not the person who asked. The
+                  // row says so rather than showing buttons that would be refused.
+                  if (!canDecide) {
                     return (
-                      <span className="text-muted" title="Only an administrator can decide a request">
-                        Awaiting an administrator
+                      <span className="text-muted" title="Only an accountant can decide a request">
+                        Awaiting an accountant
                       </span>
                     )
                   }
@@ -345,7 +348,7 @@ export function ApprovalsPage() {
       <div className="soon mt-3">
         <b>A request is not a payment</b>
         Raising one does not move any balance. It only becomes part of the ledger when an
-        administrator approves it, and the approval is recorded with the name of the person who
+        accountant approves it, and the approval is recorded with the name of the person who
         asked and the person who authorised it.
       </div>
     </>

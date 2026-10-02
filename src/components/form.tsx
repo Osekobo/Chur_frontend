@@ -104,6 +104,7 @@ export function Select({
   defaultValue,
   options,
   choices,
+  disabled,
   onChange,
 }: BaseProps & {
   value?: string
@@ -112,6 +113,7 @@ export function Select({
   options?: readonly string[]
   /** Explicit pairs, for when the value sent to the server is not the wording. */
   choices?: readonly Choice[]
+  disabled?: boolean
   onChange?: (event: ChangeEvent<HTMLSelectElement>) => void
 }) {
   const entries = choices ?? (options ?? []).map((label) => ({ value: label, label }))
@@ -122,8 +124,9 @@ export function Select({
       required={required}
       value={value}
       defaultValue={defaultValue}
+      disabled={disabled}
       onChange={onChange}
-      className={controlClass}
+      className={`${controlClass} disabled:cursor-not-allowed disabled:opacity-60`}
     >
       {entries.map((choice) => (
         <option key={choice.value} value={choice.value}>

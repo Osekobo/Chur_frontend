@@ -6,7 +6,7 @@
  * used for form dropdowns while these lists fix the display order.
  */
 
-import type { Account } from '@/api/types'
+import type { Account, Permission } from '@/api/types'
 
 import type { IconName } from '@/lib/icons'
 
@@ -43,9 +43,23 @@ export const ACCOUNTS: readonly Account[] = ['Cash', 'Bank', 'M-PESA']
 
 export const MEMBER_CATEGORIES = ['Men', 'Women', 'Youth', 'Sunday School'] as const
 
-export const PERSON_ROLES = ['Member', 'Supplier', 'Employee', 'User'] as const
+export const PERSON_ROLES = ['Member', 'Guest', 'Supplier', 'Employee', 'User'] as const
 
 export type PersonRoleName = (typeof PERSON_ROLES)[number]
+
+/**
+ * Directory roles the church always contacts by email.
+ *
+ * The server refuses to save a supplier, employee or user without an address
+ * (EMAIL_REQUIRED_ROLES in app/enums.py), so the form asks for one up front
+ * rather than letting the save fail with a message about a field the user did
+ * not see.
+ */
+export const EMAIL_REQUIRED_PERSON_ROLES: readonly PersonRoleName[] = [
+  'Supplier',
+  'Employee',
+  'User',
+]
 
 /** Percentage deductions always come off the whole collection. */
 export const DEDUCTION_FUND = 'General Fund'
@@ -61,20 +75,37 @@ export interface NavItem {
   /** Human label. */
   l: string
   /**
-   * Hidden from anyone who is not an administrator. Only a hint for the sidebar -
-   * the server enforces the same rule and answers 403 either way.
+   * What the account needs for this link to appear. Omitted means every
+   * signed-in user.
+   *
+   * This is a hint for the sidebar only. The server checks the same permission
+   * on the route behind the link and answers 403, so hiding it here spares the
+   * user a dead end rather than protecting anything.
    */
-  adminOnly?: boolean
+  needs?: Permission
 }
 
 export interface NavGroup {
   /** FontAwesome glyph shown beside the group label. */
   icon: IconName
   label: string
+  /**
+   * What the account needs for this group to appear at all. Individual items may
+   * narrow it further - the Administration group opens up for an administrator,
+   * but the audit trail inside it is his alone.
+   */
+  needs?: Permission
   items: NavItem[]
 }
 
-/** Sidebar groups, in mm.html's order. */
+/**
+ * Sidebar groups, in mm.html's order.
+ *
+ * Money Out, Transfers and the Accounting screens are hidden from a secretary
+ * because they record spending, move money or produce the accountant's figures.
+ * People stays visible to every role - the Money In picker needs the directory -
+ * but only a secretary or administrator can change it, which the page enforces.
+ */
 export const NAV: NavGroup[] = [
   { icon: 'dashboard', label: 'Dashboard', items: [{ k: 'dashboard', l: 'Dashboard' }] },
   {
@@ -93,6 +124,7 @@ export const NAV: NavGroup[] = [
   {
     icon: 'moneyOut',
     label: 'Money Out',
+    needs: 'money:out',
     items: [
       { k: 'out/all', l: 'All Money Out' },
       { k: 'out/Expenses', l: 'Expenses' },
@@ -104,6 +136,7 @@ export const NAV: NavGroup[] = [
   {
     icon: 'accounts',
     label: 'Accounts',
+    needs: 'transfers:manage',
     items: [
       { k: 'acct/Cash', l: 'Cash' },
       { k: 'acct/Bank', l: 'Bank' },
@@ -128,6 +161,7 @@ export const NAV: NavGroup[] = [
   {
     icon: 'accounting',
     label: 'Accounting',
+    needs: 'accounting:view',
     items: [
       { k: 'ledger', l: 'General Ledger' },
       { k: 'pctded', l: 'Tithe % Deduction' },
@@ -141,6 +175,7 @@ export const NAV: NavGroup[] = [
     label: 'People',
     items: [
       { k: 'people/Member', l: 'Members' },
+      { k: 'people/Guest', l: 'Guests' },
       { k: 'people/Supplier', l: 'Suppliers' },
       { k: 'people/Employee', l: 'Employees' },
       { k: 'people/User', l: 'Users' },
@@ -155,9 +190,10 @@ export const NAV: NavGroup[] = [
   {
     icon: 'administration',
     label: 'Administration',
+    needs: 'users:manage',
     items: [
-      { k: 'admin/users', l: 'Users', adminOnly: true },
-      { k: 'admin/audit', l: 'Audit Log', adminOnly: true },
+      { k: 'admin/users', l: 'Users' },
+      { k: 'admin/audit', l: 'Audit Log', needs: 'audit:view' },
     ],
   },
 ]

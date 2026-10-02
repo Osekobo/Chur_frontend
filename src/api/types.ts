@@ -7,6 +7,32 @@ export interface Message {
 export type TransactionType = 'income' | 'expense'
 export type Account = 'Cash' | 'Bank' | 'M-PESA'
 
+/**
+ * What a signed-in account is there to do. One role per account.
+ *
+ * The server decides what each role may do (see Permission and
+ * app/core/permissions.py); this list exists so the interface can hide what the
+ * server would refuse rather than offering a page that answers 403.
+ */
+export type UserRole = 'accountant' | 'secretary' | 'admin'
+
+/** One thing a role may be allowed to do, as sent by GET /auth/me. */
+export type Permission =
+  | 'dashboard:view'
+  | 'people:view'
+  | 'people:manage'
+  | 'money:in'
+  | 'money:out'
+  | 'transfers:manage'
+  | 'deductions:manage'
+  | 'accounting:view'
+  | 'reports:view'
+  | 'approvals:view'
+  | 'approvals:request'
+  | 'approvals:decide'
+  | 'users:manage'
+  | 'audit:view'
+
 export interface Transaction {
   id: string
   type: TransactionType
@@ -37,9 +63,11 @@ export interface Transfer {
 
 export interface Person {
   id: string
-  role: 'Member' | 'Supplier' | 'Employee' | 'User'
+  role: 'Member' | 'Guest' | 'Supplier' | 'Employee' | 'User'
   name: string
   phone: string
+  /** Empty unless the role is one the church always emails. */
+  email: string
   category: string
   notes: string
   created_at: string
@@ -187,9 +215,11 @@ export interface User {
   email: string
   full_name: string
   is_active: boolean
-  is_superuser: boolean
-  /** Display label derived from the two flags: User | Administrator | Deactivated. */
-  role: 'User' | 'Administrator' | 'Deactivated'
+  role: UserRole
+  /** Capitalised name for display: Accountant | Secretary | Administrator | Deactivated. */
+  role_label: string
+  /** What this account may do, so the interface can hide the rest. */
+  permissions: Permission[]
   last_login_at: string | null
   created_at: string
 }

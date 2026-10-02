@@ -19,6 +19,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 
 import { NAV } from '@/lib/constants'
 import { Icon } from '@/components/Icon'
+import { can } from '@/lib/permissions'
 import { useAuth } from '@/auth/AuthContext'
 
 /** Collapsed/expanded state per group label, so it survives navigation. */
@@ -31,7 +32,14 @@ export function Sidebar({ shown = true, onHide }: { shown?: boolean; onHide?: ()
 
   const groups = NAV.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.adminOnly || user?.is_superuser === true),
+    // The group itself may be out of reach; an item may narrow that further (the
+    // Administration group opens up for an administrator, the audit trail in it is
+    // his alone). A group with nothing left in it is dropped rather than left as a
+    // heading with no links under it.
+    items:
+      group.needs !== undefined && !can(user, group.needs)
+        ? []
+        : group.items.filter((item) => item.needs === undefined || can(user, item.needs)),
   })).filter((group) => group.items.length > 0)
 
   /** The group that owns the current path, or null when nothing matches. */
@@ -146,9 +154,9 @@ export function Sidebar({ shown = true, onHide }: { shown?: boolean; onHide?: ()
           <>
             <div className="font-bold text-white">{user.full_name}</div>
             <div style={{ wordBreak: 'break-all' }}>{user.email}</div>
-            {user.role === 'Administrator' ? (
-              <div className="mt-0.5 text-[#7fc4f0]">{user.role}</div>
-            ) : null}
+            {/* Every role says what it is - the secretary working the collections is
+                not an anomaly worth leaving unmarked. */}
+            <div className="mt-0.5 text-[#7fc4f0]">{user.role_label}</div>
             <button
               type="button"
               onClick={() => void logout()}

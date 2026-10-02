@@ -1,30 +1,37 @@
 /**
- * User administration — the screen that assigns roles.
+ * User administration - the screen that assigns roles.
  *
  * Roles are not chosen anywhere else in the app. Public sign-up always produces
- * a plain user, so this page (or the equivalent UPDATE in psql) is the only way
- * an account becomes an administrator.
+ * an accountant - the least privileged role - so this page (or the equivalent
+ * UPDATE in psql) is the only way an account becomes a secretary or an
+ * administrator.
  *
  * Two rules the screen mirrors from the server, because getting them wrong is
  * how an administrator locks everyone out:
  *
  *   - There is no delete. An account is deactivated instead, so the ledger keeps
  *     pointing at whoever recorded each transaction.
- *   - You cannot deactivate or demote yourself. The server refuses it; the
- *     buttons are disabled so the reason is visible before the round trip.
+ *   - You cannot deactivate or change your own role. The server refuses it; the
+ *     controls are disabled so the reason is visible before the round trip.
+ *
+ * What each role may do is not restated here. The server sends the answer with
+ * the session (see `can` in lib/permissions.ts) and checks it again on every
+ * request, so this page only has to choose which role to offer.
  */
 
 import { useState, type FormEvent } from 'react'
 
 import { usersApi } from '@/api/endpoints'
-import type { User } from '@/api/types'
+import type { User, UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { Field, FormGrid, Select, SubmitButton, TextInput } from '@/components/form'
 import { Async, Cards, Card, DataTable, PageHeader, Panel } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { useMutation, useQuery } from '@/hooks/useQuery'
+import { ROLE_LABELS, USER_ROLES } from '@/lib/permissions'
 
-const ROLES = ['User', 'Administrator'] as const
+/** Offered in the create form, in the order a church office is likely to need them. */
+const ROLE_CHOICES = USER_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
 
 /** Same rule as app/schemas/auth.py, checked before the request is sent. */
 function passwordProblem(password: string): string | null {
@@ -50,7 +57,7 @@ export function AdminUsersPage() {
   const state = useQuery(() => usersApi.list(), [version])
 
   const create = useMutation(
-    (payload: { email: string; full_name: string; password: string; is_superuser: boolean }) =>
+    (payload: { email: string; full_name: string; password: string; role: UserRole }) =>
       usersApi.create(payload),
     () => {
       bump()
@@ -59,7 +66,7 @@ export function AdminUsersPage() {
   )
 
   const update = useMutation(
-    (payload: { id: string; body: { is_active?: boolean; is_superuser?: boolean } }) =>
+    (payload: { id: string; body: { is_active?: boolean; role?: UserRole } }) =>
       usersApi.update(payload.id, payload.body),
     () => {
       bump()
@@ -98,7 +105,7 @@ export function AdminUsersPage() {
         email,
         full_name: fullName,
         password,
-        is_superuser: String(form.get('role') ?? '') === 'Administrator',
+        role: (form.get('role') as UserRole | null) ?? 'accountant',
       })
       .then((result) => {
         if (result !== null) event.currentTarget?.reset()
@@ -133,13 +140,19 @@ export function AdminUsersPage() {
     })
   }
 
-  function handleToggleRole(target: User) {
-    const promote = !target.is_superuser
-    const question = promote
-      ? `Make ${target.full_name} an administrator?`
-      : `Remove administrator access from ${target.full_name}?`
+  /**
+   * Change somebody's role.
+   *
+   * Asked for rather than applied on change: the difference between a secretary
+   * and an administrator is the whole of their authority, so a mis-click should
+   * have to be confirmed. A refusal from the server (changing your own) leaves
+   * the select showing what is actually stored once the list reloads.
+   */
+  function handleChangeRole(target: User, role: UserRole) {
+    if (role === target.role) return
+    const question = `Change ${target.full_name} from ${ROLE_LABELS[target.role]} to ${ROLE_LABELS[role]}?`
     if (!window.confirm(question)) return
-    void update.run({ id: target.id, body: { is_superuser: promote } }).then((result) => {
+    void update.run({ id: target.id, body: { role } }).then((result) => {
       if (result === null) toast(update.getError() ?? 'Could not save')
     })
   }
@@ -156,7 +169,7 @@ export function AdminUsersPage() {
       <PageHeader
         icon="administrationPanel"
         title="Users"
-        subtitle="Assign roles and control who can sign in. Everyone sees the same church ledger, so a role only decides who can manage accounts."
+        subtitle="Assign roles and control who can sign in. Everyone sees the same church ledger, so a role only decides which jobs that account may do."
       />
 
       <Async state={state}>
@@ -164,7 +177,7 @@ export function AdminUsersPage() {
           <>
             <Cards>
               <Card label="Accounts" value={users.length} />
-              <Card label="Administrators" value={users.filter((u) => u.is_superuser && u.is_active).length} />
+              <Card label="Administrators" value={users.filter((u) => u.role === 'admin' && u.is_active).length} />
               <Card label="Sign-ins Today" value={users.filter((u) => u.last_login_at?.slice(0, 10) === new Date().toISOString().slice(0, 10)).length} />
               <Card
                 label="Deactivated"
@@ -196,7 +209,14 @@ export function AdminUsersPage() {
                     )}
                   </Field>
                   <Field label="Role">
-                    {(id) => <Select id={id} name="role" options={ROLES} />}
+                    {(id) => (
+                      <Select
+                        id={id}
+                        name="role"
+                        defaultValue="accountant"
+                        choices={ROLE_CHOICES}
+                      />
+                    )}
                   </Field>
                   <div>
                     <SubmitButton pending={create.pending}>Create</SubmitButton>
@@ -225,7 +245,7 @@ export function AdminUsersPage() {
                   key: 'role',
                   header: 'Role',
                   render: (row) => (
-                    <span className={row.role === 'Administrator' ? 'pos' : ''}>{row.role}</span>
+                    <span className={row.role === 'admin' ? 'pos' : ''}>{row.role_label}</span>
                   ),
                 },
                 {
@@ -240,19 +260,13 @@ export function AdminUsersPage() {
                     const isSelf = row.id === me?.id
                     return (
                       <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          className="ghost"
+                        <Select
+                          id={`role-${row.id}`}
+                          value={row.role}
+                          choices={ROLE_CHOICES}
                           disabled={isSelf}
-                          title={
-                            isSelf
-                              ? 'You cannot change your own administrator access'
-                              : undefined
-                          }
-                          onClick={() => handleToggleRole(row)}
-                        >
-                          {row.is_superuser ? 'Remove admin' : 'Make admin'}
-                        </button>
+                          onChange={(event) => handleChangeRole(row, event.target.value as UserRole)}
+                        />
                         <button
                           type="button"
                           className="ghost"

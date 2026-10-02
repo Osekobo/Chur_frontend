@@ -26,6 +26,7 @@ import type {
   ReferenceData,
   SummaryReport,
   TithesOnDate,
+  UserRole,
   TitheScope,
   Transaction,
   Transfer,
@@ -59,9 +60,13 @@ export const authApi = {
  */
 export const usersApi = {
   list: () => api.get<User[]>('/users'),
-  create: (payload: { email: string; full_name: string; password: string; is_superuser: boolean }) =>
-    api.post<User>('/users', payload),
-  update: (id: string, payload: { full_name?: string; is_active?: boolean; is_superuser?: boolean }) =>
+  create: (payload: {
+    email: string
+    full_name: string
+    password: string
+    role: UserRole
+  }) => api.post<User>('/users', payload),
+  update: (id: string, payload: { full_name?: string; is_active?: boolean; role?: UserRole }) =>
     api.patch<User>(`/users/${id}`, payload),
   setPassword: (id: string, new_password: string) =>
     api.post<Message>(`/users/${id}/password`, { new_password }),
@@ -178,6 +183,8 @@ export interface PersonInput {
   role: Person['role']
   name: string
   phone?: string
+  /** Required by the server for suppliers, employees and users. */
+  email?: string
   category?: string
   notes?: string
 }

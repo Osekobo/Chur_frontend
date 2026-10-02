@@ -1,15 +1,35 @@
-/** The people directory — one screen per role, matching mm.html. */
+/**
+ * The people directory - one screen per role, matching mm.html.
+ *
+ * Everyone can read the directory: the Money In picker needs to look a giver up.
+ * Only a secretary or an administrator can change it, so for an accountant this
+ * screen drops its Add form and its Delete links rather than offering buttons
+ * that would be refused. The server refuses them either way.
+ *
+ * The email column is empty for most rows because most people are not emailed:
+ * only suppliers, employees and users are, and those three refuse to save
+ * without an address. That rule spans two fields - a member promoted to supplier
+ * has to gain an address - so it is enforced where the record as a whole is
+ * valid, not here in the form.
+ */
 
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { peopleApi } from '@/api/endpoints'
 import type { Person } from '@/api/types'
+import { useAuth } from '@/auth/AuthContext'
 import { DeleteLink, Field, FormGrid, Select, SubmitButton, TextInput } from '@/components/form'
 import { Async, DataTable, PageHeader, Panel } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { useMutation, useQuery } from '@/hooks/useQuery'
-import { MEMBER_CATEGORIES, PERSON_ROLES, type PersonRoleName } from '@/lib/constants'
+import {
+  EMAIL_REQUIRED_PERSON_ROLES,
+  MEMBER_CATEGORIES,
+  PERSON_ROLES,
+  type PersonRoleName,
+} from '@/lib/constants'
+import { can } from '@/lib/permissions'
 
 export function PeoplePage() {
   const params = useParams<{ role: string }>()
@@ -17,6 +37,10 @@ export function PeoplePage() {
   const role = (PERSON_ROLES.find((name) => name === raw) ?? 'Member') as PersonRoleName
   const label = `${role}s`
   const isMember = role === 'Member'
+  /** These three are the roles the church always writes to. */
+  const needsEmail = EMAIL_REQUIRED_PERSON_ROLES.includes(role)
+  const { user } = useAuth()
+  const canManage = can(user, 'people:manage')
   const toast = useToast()
 
   const [version, setVersion] = useState(0)
@@ -25,11 +49,12 @@ export function PeoplePage() {
   const state = useQuery(() => peopleApi.list({ role, limit: 1000 }), [role, version])
 
   const create = useMutation(
-    (payload: { name: string; phone: string; category: string; notes: string }) =>
+    (payload: { name: string; phone: string; email: string; category: string; notes: string }) =>
       peopleApi.create({
         role,
         name: payload.name,
         phone: payload.phone,
+        email: payload.email,
         category: payload.category,
         notes: payload.notes,
       }),
@@ -55,15 +80,24 @@ export function PeoplePage() {
       toast('Please enter a name')
       return
     }
+    // Asked for here so the reason is visible before the round trip. The server
+    // refuses the same thing, because it is the only place that sees both fields.
+    const email = String(form.get('email') ?? '').trim()
+    if (needsEmail && email === '') {
+      toast(`A ${role.toLowerCase()} needs an email address`)
+      return
+    }
     void create
       .run({
         name,
         phone: String(form.get('phone') ?? ''),
+        email,
         category: isMember ? String(form.get('category') ?? '') : '',
         notes: String(form.get('notes') ?? ''),
       })
       .then((result) => {
-        if (result === null) toast(create.getError() ?? 'Could not save')
+        if (result !== null) event.currentTarget?.reset()
+        else toast(create.getError() ?? 'Could not save')
       })
   }
 
@@ -78,29 +112,36 @@ export function PeoplePage() {
     <>
       <PageHeader icon="directory" title={label} />
 
-      <Panel title={`Add ${role}`}>
-        <div className="mt-2.5">
-          <FormGrid onSubmit={handleSubmit}>
-            <Field label="Full Name">
-              {(id) => <TextInput id={id} name="name" required />}
-            </Field>
-            <Field label="Phone">
-              {(id) => <TextInput id={id} name="phone" />}
-            </Field>
-            {isMember ? (
-              <Field label="Category">
-                {(id) => <Select id={id} name="category" options={MEMBER_CATEGORIES} />}
+      {canManage ? (
+        <Panel title={`Add ${role}`}>
+          <div className="mt-2.5">
+            <FormGrid onSubmit={handleSubmit}>
+              <Field label="Full Name">
+                {(id) => <TextInput id={id} name="name" required />}
               </Field>
-            ) : null}
-            <Field label="Notes">
-              {(id) => <TextInput id={id} name="notes" />}
-            </Field>
-            <div>
-              <SubmitButton pending={create.pending}>Save</SubmitButton>
-            </div>
-          </FormGrid>
-        </div>
-      </Panel>
+              <Field label="Phone">
+                {(id) => <TextInput id={id} name="phone" />}
+              </Field>
+              <Field label={needsEmail ? 'Email *' : 'Email'}>
+                {(id) => (
+                  <TextInput id={id} name="email" type="text" required={needsEmail} />
+                )}
+              </Field>
+              {isMember ? (
+                <Field label="Category">
+                  {(id) => <Select id={id} name="category" options={MEMBER_CATEGORIES} />}
+                </Field>
+              ) : null}
+              <Field label="Notes">
+                {(id) => <TextInput id={id} name="notes" />}
+              </Field>
+              <div>
+                <SubmitButton pending={create.pending}>Save</SubmitButton>
+              </div>
+            </FormGrid>
+          </div>
+        </Panel>
+      ) : null}
 
       <Async state={state}>
         {(data) => (
@@ -111,15 +152,30 @@ export function PeoplePage() {
             columns={[
               { key: 'name', header: 'Name', render: (row) => row.name },
               { key: 'phone', header: 'Phone', render: (row) => row.phone || '' },
+              {
+                key: 'email',
+                header: 'Email',
+                render: (row) => row.email || <span className="text-muted">—</span>,
+              },
               ...(isMember
-                ? [{ key: 'category', header: 'Category', render: (row: Person) => row.category || '' }]
+                ? [
+                    {
+                      key: 'category',
+                      header: 'Category',
+                      render: (row: Person) => row.category || '',
+                    },
+                  ]
                 : []),
               { key: 'notes', header: 'Notes', render: (row) => row.notes || '' },
-              {
-                key: 'actions',
-                header: '',
-                render: (row) => <DeleteLink onClick={() => handleDelete(row)} />,
-              },
+              ...(canManage
+                ? [
+                    {
+                      key: 'actions',
+                      header: '',
+                      render: (row: Person) => <DeleteLink onClick={() => handleDelete(row)} />,
+                    },
+                  ]
+                : []),
             ]}
           />
         )}
