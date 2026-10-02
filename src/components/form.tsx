@@ -90,6 +90,12 @@ export function TextInput({
   )
 }
 
+/** An option whose stored value differs from the text shown to the user. */
+export interface Choice {
+  value: string
+  label: string
+}
+
 export function Select({
   id,
   name,
@@ -97,13 +103,18 @@ export function Select({
   value,
   defaultValue,
   options,
+  choices,
   onChange,
 }: BaseProps & {
   value?: string
   defaultValue?: string
-  options: readonly string[]
+  /** Plain labels, for when every option's value is the same as its label. */
+  options?: readonly string[]
+  /** Explicit pairs, for when the value sent to the server is not the wording. */
+  choices?: readonly Choice[]
   onChange?: (event: ChangeEvent<HTMLSelectElement>) => void
 }) {
+  const entries = choices ?? (options ?? []).map((label) => ({ value: label, label }))
   return (
     <select
       id={id}
@@ -114,9 +125,9 @@ export function Select({
       onChange={onChange}
       className={controlClass}
     >
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
+      {entries.map((choice) => (
+        <option key={choice.value} value={choice.value}>
+          {choice.label}
         </option>
       ))}
     </select>

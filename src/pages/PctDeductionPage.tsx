@@ -2,14 +2,15 @@
  * Tithe % Deduction.
  *
  * The amount is never taken on trust from the browser: the server recomputes it
- * from the tithes actually recorded for that date. The live figures below come
- * from the preview endpoint so the form can update as you type.
+ * from the collection actually recorded for that date and the chosen basis. The
+ * live figures below come from the preview endpoint so the form can update as you
+ * type.
  */
 
 import { useState, type FormEvent } from 'react'
 
 import { deductionsApi } from '@/api/endpoints'
-import type { Account, Transaction } from '@/api/types'
+import type { Account, DeductionBasis, Transaction } from '@/api/types'
 import { Field, FormGrid, Select, SubmitButton, TextInput } from '@/components/form'
 import { Async, Card, Cards, DataTable, PageHeader, Panel } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -17,11 +18,18 @@ import { useMutation, useDebounced, useQuery } from '@/hooks/useQuery'
 import { ACCOUNTS } from '@/lib/constants'
 import { money, toNumber } from '@/lib/money'
 
+/** Must match the DeductionBasis values in app/enums.py. */
+const BASES: readonly { value: DeductionBasis; label: string }[] = [
+  { value: 'tithes', label: 'Tithes only' },
+  { value: 'all', label: 'All money collected' },
+]
+
 export function PctDeductionPage() {
   const toast = useToast()
   const [version, setVersion] = useState(0)
   const [date, setDate] = useState('')
   const [pct, setPct] = useState('')
+  const [basis, setBasis] = useState<DeductionBasis>('tithes')
 
   const history = useQuery(
     () => deductionsApi.history(),
@@ -34,14 +42,19 @@ export function PctDeductionPage() {
   const debouncedDate = useDebounced(date, 250)
   const debouncedPct = useDebounced(pctValue, 250)
   const preview = useQuery(
-    () => deductionsApi.preview(debouncedDate, debouncedPct),
-    [debouncedDate, debouncedPct],
+    () => deductionsApi.preview(debouncedDate, debouncedPct, basis),
+    [debouncedDate, debouncedPct, basis],
     debouncedDate !== '' && debouncedPct > 0,
   )
 
   const create = useMutation(
-    (payload: { date: string; pct: number; account: Account; notes: string }) =>
-      deductionsApi.create(payload),
+    (payload: {
+      date: string
+      pct: number
+      account: Account
+      notes: string
+      basis: DeductionBasis
+    }) => deductionsApi.create(payload),
     () => {
       setVersion((value) => value + 1)
       toast('Deduction recorded')
@@ -69,6 +82,7 @@ export function PctDeductionPage() {
         pct: percentage,
         account: String(form.get('account') ?? '') as Account,
         notes,
+        basis,
       })
       .then((result) => {
         if (result === null) {
@@ -83,15 +97,16 @@ export function PctDeductionPage() {
       })
   }
 
-  const tithes = preview.data?.tithes_that_day
+  const collected = preview.data?.collected_that_day
   const amount = preview.data?.deduction_amount
+  const wholeDay = basis === 'all'
 
   return (
     <>
       <PageHeader
         icon="pctDeduction"
         title="Tithe % Deduction"
-        subtitle="Take a percentage off a Sunday's tithe collection - e.g. a diocese remittance. This creates a real Money Out entry the moment you click Record, so it actually reduces the account you choose. It does not affect Offerings, Donations, Welfare or any other category - only Tithes."
+        subtitle="Take a percentage off what a Sunday brought in - e.g. a diocese remittance. Percentage Base decides what it comes off: Tithes only leaves Offerings, Donations and Welfare untouched, while All money collected takes it off every category recorded that day. Money moved between the church's own accounts is never counted. This creates a real Money Out entry the moment you click Record, so it actually reduces the account you choose."
       />
 
       <Panel>
@@ -123,6 +138,17 @@ export function PctDeductionPage() {
               />
             )}
           </Field>
+          <Field label="Percentage Base">
+            {(id) => (
+              <Select
+                id={id}
+                name="basis"
+                value={basis}
+                choices={BASES}
+                onChange={(event) => setBasis(event.target.value as DeductionBasis)}
+              />
+            )}
+          </Field>
           <Field label="Deduct from Account">
             {(id) => <Select id={id} name="account" options={ACCOUNTS} />}
           </Field>
@@ -139,8 +165,8 @@ export function PctDeductionPage() {
         <div className="mt-3.5">
           <Cards>
             <Card
-              label="Tithes collected that Sunday"
-              value={tithes === undefined ? money(0) : money(tithes)}
+              label={wholeDay ? 'All money collected that Sunday' : 'Tithes collected that Sunday'}
+              value={collected === undefined ? money(0) : money(collected)}
             />
             <Card
               label="Deduction amount"
@@ -169,7 +195,7 @@ export function PctDeductionPage() {
               },
               {
                 key: 'base',
-                header: 'Tithes That Day',
+                header: 'Collected That Day',
                 render: (row) => money(row.base_total ?? 0),
               },
               {

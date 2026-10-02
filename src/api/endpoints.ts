@@ -14,6 +14,7 @@ import type {
   ChartOfAccounts,
   ContributionSearchResult,
   DashboardSummary,
+  DeductionBasis,
   FinancialStatements,
   FundSummary,
   MemberContribution,
@@ -160,11 +161,16 @@ export const transactionsApi = {
 
 export const deductionsApi = {
   tithesOnDate: (date: string) => api.get<TithesOnDate>('/accounting/tithes-on-date', { date }),
-  preview: (date: string, pct: number) =>
-    api.get<PctDeductionPreview>('/accounting/pct-deduction-preview', { date, pct }),
+  preview: (date: string, pct: number, basis: DeductionBasis = 'tithes') =>
+    api.get<PctDeductionPreview>('/accounting/pct-deduction-preview', { date, pct, basis }),
   history: () => api.get<Transaction[]>('/transactions/pct-deductions'),
-  create: (payload: { date: string; pct: number; account: Account; notes?: string }) =>
-    api.post<PctDeductionResult>('/transactions/pct-deduction', payload),
+  create: (payload: {
+    date: string
+    pct: number
+    account: Account
+    notes: string
+    basis?: DeductionBasis
+  }) => api.post<PctDeductionResult>('/transactions/pct-deduction', payload),
 }
 
 /* ---------------------------------------------------------------- people -- */

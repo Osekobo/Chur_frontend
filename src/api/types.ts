@@ -142,6 +142,13 @@ export interface ReferenceData {
   transaction_types: string[]
 }
 
+/**
+ * What a Tithe % Deduction is taken from. `tithes` is the traditional reading and
+ * leaves Offerings and the rest alone; `all` takes the percentage off every
+ * category collected that day. Matches DeductionBasis in app/enums.py.
+ */
+export type DeductionBasis = 'tithes' | 'all'
+
 export interface TithesOnDate {
   date: string
   total: string
@@ -151,14 +158,17 @@ export interface TithesOnDate {
 export interface PctDeductionPreview {
   date: string
   pct: string
-  tithes_that_day: string
+  /** The collection the percentage would come from, for the chosen basis. */
+  collected_that_day: string
   deduction_amount: string
+  basis: DeductionBasis
 }
 
 export interface PctDeductionResult {
   transaction: Transaction
-  tithes_that_day: string
+  collected_that_day: string
   deduction_amount: string
+  basis: DeductionBasis
 }
 
 export interface User {
