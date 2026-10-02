@@ -27,7 +27,16 @@ export const CATS_OUT = [
   'Percentage Deduction',
 ] as const
 
-export const FUNDS = ['General Fund', 'Building', 'Youth', 'Missions', 'Other'] as const
+/** Must match the Fund enum in app/enums.py, which the API validates against. */
+export const FUNDS = [
+  'General Fund',
+  'Building',
+  'Youth',
+  'Men',
+  'Sunday School',
+  'Missions',
+  'Other',
+] as const
 
 export const ACCOUNTS: readonly Account[] = ['Cash', 'Bank', 'M-PESA']
 
@@ -108,6 +117,8 @@ export const NAV: NavGroup[] = [
       { k: 'fund/General Fund', l: 'General Fund' },
       { k: 'fund/Building', l: 'Building' },
       { k: 'fund/Youth', l: 'Youth' },
+      { k: 'fund/Men', l: 'Men' },
+      { k: 'fund/Sunday School', l: 'Sunday School' },
       { k: 'fund/Missions', l: 'Missions' },
       { k: 'fund/Other', l: 'Other Funds' },
     ],
