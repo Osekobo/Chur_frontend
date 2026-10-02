@@ -10,9 +10,13 @@
  * the directory at all. Money In names who gave, and a giver must be someone in the
  * directory, so that box is a picker rather than a text field. The server enforces
  * both; this only saves the mistake.
+ *
+ * Every attempt to save ends in a toast, the successful ones and the refused ones
+ * alike. Each entry also carries a token from its form, so a second Save is the
+ * same save rather than a second row of money.
  */
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { peopleApi, reportsApi, transactionsApi } from '@/api/endpoints'
@@ -26,6 +30,7 @@ import { useToast } from '@/components/Toast'
 import { useDebounced, useMutation, useQuery } from '@/hooks/useQuery'
 import { ACCOUNTS, CATS_IN, CATS_OUT, FUNDS, PAGE_SIZE } from '@/lib/constants'
 import { money, toNumber } from '@/lib/money'
+import { newRequestId } from '@/lib/requestId'
 
 type Direction = 'income' | 'expense'
 
@@ -87,6 +92,14 @@ export function MoneyPage({ direction }: { direction: Direction }) {
     [peopleState.data],
   )
 
+  /**
+   * This form's token for the entry being typed. It stays the same until an
+   * entry is actually written, so pressing Save twice - or pressing it again
+   * after the reply was lost - is recognised by the server as the same save and
+   * returns the one entry instead of writing a second.
+   */
+  const requestId = useRef(newRequestId())
+
   const create = useMutation(
     (payload: {
       category: string
@@ -97,6 +110,7 @@ export function MoneyPage({ direction }: { direction: Direction }) {
       account: Account
       notes: string
       date: string
+      clientRequestId: string
     }) =>
       transactionsApi.create({
         type: direction,
@@ -109,8 +123,11 @@ export function MoneyPage({ direction }: { direction: Direction }) {
         account: payload.account,
         notes: payload.notes,
         date: payload.date,
+        client_request_id: payload.clientRequestId,
       }),
     () => {
+      // Written. The next entry is a different one and needs its own token.
+      requestId.current = newRequestId()
       bump()
       toast('Saved')
     },
@@ -140,16 +157,24 @@ export function MoneyPage({ direction }: { direction: Direction }) {
       toast('Choose who gave, from the directory')
       return
     }
+    // Money out names who was paid, in free text, because a power company is
+    // not in the directory.
+    const party = String(form.get('party') ?? '').trim()
+    if (direction === 'expense' && party === '') {
+      toast('Say who was paid')
+      return
+    }
     void create
       .run({
         category: String(form.get('category') ?? ''),
-        party: String(form.get('party') ?? ''),
+        party,
         personId,
         amount,
         fund: String(form.get('fund') ?? ''),
         account: String(form.get('account') ?? '') as Account,
         notes: String(form.get('notes') ?? ''),
         date,
+        clientRequestId: requestId.current,
       })
       .then((result) => {
         if (result === null) toast(create.getError() ?? 'Could not save')

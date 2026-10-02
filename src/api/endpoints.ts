@@ -145,6 +145,10 @@ export interface TransactionInput {
   date: string
   /** Required for income, refused for an expense: the giver is in the directory. */
   person_id?: string
+  /** This form's token for this entry. Sending the same one twice returns the
+      entry already written instead of writing a second one, so a double-click or
+      a retry after a dropped connection cannot double-count money. */
+  client_request_id?: string
 }
 
 export const transactionsApi = {

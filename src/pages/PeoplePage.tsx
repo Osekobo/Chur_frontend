@@ -82,7 +82,11 @@ export function PeoplePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    // Held onto before the round trip: React empties `currentTarget` as soon as
+    // the handler returns, so by the time the save comes back there would be no
+    // form left to clear.
+    const element = event.currentTarget
+    const form = new FormData(element)
     const name = String(form.get('name') ?? '').trim()
     if (!name) {
       toast('Please enter a name')
@@ -104,7 +108,10 @@ export function PeoplePage() {
         notes: String(form.get('notes') ?? ''),
       })
       .then((result) => {
-        if (result !== null) event.currentTarget?.reset()
+        // Cleared only on success: if the name is already in the directory, the
+        // details typed alongside it are still what the secretary wants to keep
+        // while she goes to use the existing entry.
+        if (result !== null) element.reset()
         else toast(create.getError() ?? 'Could not save')
       })
   }

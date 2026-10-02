@@ -17,6 +17,13 @@ export function FormGrid({
       // would make the form scroll sideways instead of dropping to one column.
       className="grid grid-cols-[repeat(auto-fit,minmax(min(140px,100%),1fr))] items-end gap-2.5"
       onSubmit={onSubmit}
+      // The browser's own validation stops the submit before React hears about
+      // it, and its bubble is not this app's: nothing appears in the corner, and
+      // on a form where the only complaint would be an empty box the page looks
+      // as though Save did nothing. Every form here checks its own fields and
+      // answers with a toast, which is the same message in the same place for
+      // every kind of failure.
+      noValidate
     >
       {children}
     </form>

@@ -50,6 +50,10 @@ export interface Transaction {
   /** Who the money came from. Null on transfers, on expenses, and on entries
       recorded before money in had to name someone. */
   person_id: string | null
+  /** The token the form that wrote this entry sent, if it was written from a
+      form. The server keeps it unique, so a repeated save is recognised as the
+      same entry rather than written twice. */
+  client_request_id: string | null
   created_by_id: string | null
   created_at: string
   updated_at: string
